@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Melis vs Said - Chaos Edition</title>
+    <title>Melis vs Said - Pro Arena FINAL v2</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #fff; font-family: 'Arial Black', sans-serif; }
@@ -129,6 +129,7 @@ function update() {
         ctx.fillStyle = "#2ecc71"; ctx.fillRect(healBox.x-15, healBox.y-15, 30, 30);
         ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("+", healBox.x, healBox.y+7);
     }
+    
     if (gameState === "PLAY" && powerBoxes.length === 0 && Date.now() - lastPowerTime > 15000) {
         powerBoxes.push({ x: 50, y: canvas.height / 2 }, { x: canvas.width - 50, y: canvas.height / 2 });
     }
@@ -137,11 +138,13 @@ function update() {
         ctx.fillStyle = "#f1c40f"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("?", p.x, p.y+7);
     });
 
-    // Mermiler
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.x += Math.cos(b.angle * Math.PI / 180) * 8;
         b.y += Math.sin(b.angle * Math.PI / 180) * 8;
+        
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) { bullets.splice(i, 1); continue; }
+
         ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fillStyle = b.color; ctx.fill();
         for (let j = bushes.length - 1; j >= 0; j--) {
             let bush = bushes[j];
@@ -151,10 +154,10 @@ function update() {
             }
         }
         if (!bullets[i]) continue;
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) { bullets.splice(i, 1); continue; }
+
         tanks.forEach(tank => {
-            let tRadius = tank.powerType === "SPEED" ? 14 : 22;
-            if (Math.hypot(tank.x - b.x, tank.y - b.y) < tRadius + b.size && b.owner !== tank.id && gameState === "PLAY") {
+            let tRad = tank.powerType === "SPEED" ? 14 : 22;
+            if (Math.hypot(tank.x - b.x, tank.y - b.y) < tRad + b.size && b.owner !== tank.id && gameState === "PLAY") {
                 if (tank.powerType !== "SHIELD") tank.health -= b.damage;
                 bullets.splice(i, 1); sounds.hit();
                 if (tank.health <= 0) {
@@ -170,16 +173,16 @@ function update() {
     tanks.forEach((tank, index) => {
         if (tank.powerType && Date.now() > tank.powerEnd) tank.powerType = null;
         if (gameState === "PLAY" || gameState === "COUNTDOWN") {
-            if (!tank.active) tank.angle += 0.8 * tank.dir;
+            if (!tank.active) tank.angle += 1.0 * tank.dir; // ARTTIRILMIŞ DÖNÜŞ HIZI
             else if (gameState === "PLAY") {
-                let speedMult = tank.powerType === "SPEED" ? 3.2 : 1.6;
-                tank.x += Math.cos(tank.angle * Math.PI / 180) * speedMult;
-                tank.y += Math.sin(tank.angle * Math.PI / 180) * speedMult;
+                let sMult = tank.powerType === "SPEED" ? 4.0 : 2.0; // ARTTIRILMIŞ İLERLEME HIZI
+                tank.x += Math.cos(tank.angle * Math.PI / 180) * sMult;
+                tank.y += Math.sin(tank.angle * Math.PI / 180) * sMult;
                 if (tank.x < 0) tank.x = canvas.width; if (tank.x > canvas.width) tank.x = 0;
                 if (tank.y < 0) tank.y = canvas.height; if (tank.y > canvas.height) tank.y = 0;
                 if (bushes.some(bush => Math.hypot(tank.x-bush.x, tank.y-bush.y) < 30)) {
-                    tank.x -= Math.cos(tank.angle * Math.PI / 180) * (speedMult + 1);
-                    tank.y -= Math.sin(tank.angle * Math.PI / 180) * (speedMult + 1);
+                    tank.x -= Math.cos(tank.angle * Math.PI / 180) * (sMult + 1);
+                    tank.y -= Math.sin(tank.angle * Math.PI / 180) * (sMult + 1);
                 }
                 if (healBox && Math.hypot(tank.x - healBox.x, tank.y - healBox.y) < 35) {
                     tank.health = 3; healBox = null; lastHealTime = Date.now(); sounds.heal();
@@ -195,32 +198,26 @@ function update() {
                 });
             }
         }
-        
         ctx.save(); ctx.translate(tank.x, tank.y);
         ctx.fillStyle = "#333"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; ctx.fillText(tank.name, 0, -40);
         if(tank.powerType === "SHIELD") {
-            ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI*2);
-            ctx.strokeStyle = "rgba(0, 170, 255, 0.5)"; ctx.lineWidth = 4; ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI*2); ctx.strokeStyle = "rgba(0, 170, 255, 0.5)"; ctx.lineWidth = 4; ctx.stroke();
         }
         ctx.rotate(tank.angle * Math.PI / 180);
-        
-        let visualScale = tank.powerType === "SPEED" ? 0.66 : 1.0;
-        ctx.scale(visualScale, visualScale);
-
-        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); 
-        ctx.strokeStyle = tank.powerType ? "#f1c40f" : "#333"; ctx.lineWidth = 3; ctx.stroke();
+        let vScale = tank.powerType === "SPEED" ? 0.66 : 1.0;
+        ctx.scale(vScale, vScale);
+        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.strokeStyle = tank.powerType ? "#f1c40f" : "#333"; ctx.lineWidth = 3; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 20, 0, (Math.PI * 2) * (Math.max(0, tank.health) / 3)); ctx.fillStyle = tank.color; ctx.fill();
-        
-        ctx.fillStyle = tank.powerType ? "#f1c40f" : "#333";
         if (tank.powerType === "SHOTGUN") {
+            ctx.fillStyle = "#f1c40f";
             for(let i=1; i<12; i++) { ctx.save(); ctx.rotate((i*30)*Math.PI/180); ctx.fillRect(20, -3, 12, 6); ctx.restore(); }
             ctx.fillStyle = "#333"; ctx.fillRect(18, -4, 15, 8);
         } else if (tank.powerType === "MEGA") {
-            ctx.fillRect(18, -12, 25, 24);
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(18, -12, 25, 24);
         } else if (tank.powerType === "SNIPER") {
-            ctx.fillRect(18, -4, 40, 8); // 2 Kat Uzun Namlu
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(18, -4, 40, 8);
         } else {
-            ctx.fillRect(18, -4, 15, 8);
+            ctx.fillStyle = "#333"; ctx.fillRect(18, -4, 15, 8);
         }
         ctx.restore();
     });
