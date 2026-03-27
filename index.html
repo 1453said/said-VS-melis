@@ -172,7 +172,7 @@ function update() {
     tanks.forEach((tank, index) => {
         if (tank.powerType && Date.now() > tank.powerEnd) tank.powerType = null;
         if (gameState === "PLAY" || gameState === "COUNTDOWN") {
-            if (!tank.active) tank.angle += 1.87 * tank.dir; // YENİ: 1.87 DÖNÜŞ HIZI
+            if (!tank.active) tank.angle += 2.10 * tank.dir; // YENİ: 2.10 DÖNÜŞ HIZI
             else if (gameState === "PLAY") {
                 let sMult = tank.powerType === "SPEED" ? 6.0 : 3.0;
                 tank.x += Math.cos(tank.angle * Math.PI / 180) * sMult;
