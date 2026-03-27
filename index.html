@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Melis vs Said - Chaos Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; overflow: hidden; background: #fff; font-family: 'Arial Black', sans-serif; }
+        canvas { display: block; background: #fff; }
+        #ui { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 10; }
+        .score { width: 50px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; border: 2px solid #333; border-radius: 5px; }
+        .key-hint { width: 30px; height: 30px; background: #eee; border: 2px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #333; font-weight: bold; }
+        #blue-score { background: #00aaff; }
+        #red-score { background: #ff4444; }
+        .controls { 
+            position: absolute; width: 85px; height: 85px; border-radius: 50%; 
+            background: rgba(0,0,0,0.05); border: 3px solid rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center; 
+            color: #333; font-size: 11px; user-select: none; -webkit-tap-highlight-color: transparent; z-index: 10;
+        }
+        #p1-btn { bottom: 30px; left: 30px; border-color: #00aaff; } 
+        #p2-btn { top: 30px; right: 30px; border-color: #ff4444; transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="key-hint">A</div>
+        <div id="blue-score" class="score">0</div>
+        <div id="red-score" class="score">0</div>
+        <div class="key-hint">L</div>
+    </div>
+    <div id="p1-btn" class="controls">MELİS</div>
+    <div id="p2-btn" class="controls">SAİD</div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(f, t, d, v = 0.1) {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = t; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+    g.gain.setValueAtTime(v, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + d);
+}
+
+const sounds = {
+    fire: () => playSound(150, 'sine', 0.1, 0.05),
+    hit: () => playSound(200, 'square', 0.2, 0.1),
+    heal: () => { playSound(500, 'triangle', 0.1, 0.1); setTimeout(() => playSound(700, 'triangle', 0.2, 0.1), 100); },
+    power: () => { playSound(400, 'sawtooth', 0.1, 0.1); setTimeout(() => playSound(800, 'sawtooth', 0.3, 0.1), 150); },
+    tick: () => playSound(440, 'sine', 0.1, 0.1),
+    go: () => playSound(880, 'sine', 0.3, 0.1),
+    win: () => [523, 523, 523, 659].forEach((f, i) => setTimeout(() => playSound(f, 'triangle', 0.3, 0.1), i * 150))
+};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+let bullets = [];
+let scores = { blue: 0, red: 0 };
+let gameState = "PLAY"; 
+let timer = 3;
+let winnerName = "";
+let healBox = null;
+let powerBoxes = [];
+let lastHealTime = Date.now();
+let lastPowerTime = Date.now();
+let bushes = [];
+
+function generateBushes() {
+    bushes = [];
+    for(let i=0; i<3; i++) {
+        let bx = 150 + Math.random() * (canvas.width/2 - 250);
+        let by = canvas.height/2 + (Math.random() * 300 - 150);
+        bushes.push({x: bx, y: by, r: 35});
+        bushes.push({x: canvas.width - bx, y: canvas.height - by, r: 35});
+    }
+}
+
+let tanks = [
+    { id: 0, name: "MELİS", startX: 80, startY: canvas.height - 100, x: 80, y: canvas.height - 100, angle: 270, color: '#00aaff', active: false, dir: 1, health: 3, powerType: null, lastPower: null, powerEnd: 0 },
+    { id: 1, name: "SAİD", startX: canvas.width - 80, startY: 100, x: canvas.width - 80, y: 100, angle: 90, color: '#ff4444', active: false, dir: 1, health: 3, powerType: null, lastPower: null, powerEnd: 0 }
+];
+
+function getSmartPower(tankIdx) {
+    const powers = ["MEGA", "SHOTGUN", "SHIELD", "SPEED", "SNIPER"];
+    const myTank = tanks[tankIdx];
+    const otherTank = tanks[1 - tankIdx];
+    let available = powers.filter(p => p !== myTank.lastPower && p !== otherTank.powerType);
+    if (available.length === 0) available = powers.filter(p => p !== myTank.lastPower);
+    return available[Math.floor(Math.random() * available.length)];
+}
+
+function resetRound() {
+    tanks.forEach(t => { t.health = 3; t.powerType = null; t.lastPower = null; t.active = false; t.x = t.startX; t.y = t.startY; });
+    bullets = []; healBox = null; powerBoxes = [];
+    lastHealTime = Date.now(); lastPowerTime = Date.now();
+    generateBushes(); startCountdown();
+}
+
+function startCountdown() {
+    gameState = "COUNTDOWN"; timer = 3;
+    let interval = setInterval(() => { if (timer > 0) sounds.tick(); timer--; if (timer < 0) { clearInterval(interval); gameState = "PLAY"; sounds.go(); } }, 800);
+}
+
+function drawBushShape(x, y, radius) {
+    ctx.fillStyle = "#27ae60";
+    for (let i = 0; i < 6; i++) {
+        let angle = (i * 60) * Math.PI / 180;
+        ctx.beginPath(); ctx.arc(x + Math.cos(angle)*15, y + Math.sin(angle)*15, 22, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+function update() {
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    bushes.forEach(b => drawBushShape(b.x, b.y, b.r));
+
+    if (gameState === "COUNTDOWN") {
+        ctx.fillStyle = "#333"; ctx.font = "bold 80px Arial"; ctx.textAlign = "center";
+        ctx.fillText(timer === 0 ? "GO!" : timer, canvas.width/2, canvas.height/2);
+    }
+    if (gameState === "WINNER") {
+        ctx.fillStyle = "#333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+        ctx.fillText(winnerName + " WINNER!", canvas.width/2, canvas.height/2);
+    }
+
+    if (gameState === "PLAY" && !healBox && Date.now() - lastHealTime > 10000) healBox = { x: canvas.width / 2, y: canvas.height / 2 };
+    if (healBox) {
+        ctx.fillStyle = "#2ecc71"; ctx.fillRect(healBox.x-15, healBox.y-15, 30, 30);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("+", healBox.x, healBox.y+7);
+    }
+    if (gameState === "PLAY" && powerBoxes.length === 0 && Date.now() - lastPowerTime > 15000) {
+        powerBoxes.push({ x: 50, y: canvas.height / 2 }, { x: canvas.width - 50, y: canvas.height / 2 });
+    }
+    powerBoxes.forEach(p => {
+        ctx.fillStyle = "#000"; ctx.fillRect(p.x-15, p.y-15, 30, 30);
+        ctx.fillStyle = "#f1c40f"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("?", p.x, p.y+7);
+    });
+
+    // Mermiler
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += Math.cos(b.angle * Math.PI / 180) * 8;
+        b.y += Math.sin(b.angle * Math.PI / 180) * 8;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fillStyle = b.color; ctx.fill();
+        for (let j = bushes.length - 1; j >= 0; j--) {
+            let bush = bushes[j];
+            if (Math.hypot(b.x - bush.x, b.y - bush.y) < 30) {
+                if (b.canBreak) bushes.splice(j, 1);
+                bullets.splice(i, 1); break;
+            }
+        }
+        if (!bullets[i]) continue;
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) { bullets.splice(i, 1); continue; }
+        tanks.forEach(tank => {
+            let tRadius = tank.powerType === "SPEED" ? 14 : 22;
+            if (Math.hypot(tank.x - b.x, tank.y - b.y) < tRadius + b.size && b.owner !== tank.id && gameState === "PLAY") {
+                if (tank.powerType !== "SHIELD") tank.health -= b.damage;
+                bullets.splice(i, 1); sounds.hit();
+                if (tank.health <= 0) {
+                    gameState = "WINNER"; winnerName = tank.id === 0 ? "SAİD" : "MELİS";
+                    sounds.win(); scores[winnerName === "SAİD" ? 'red' : 'blue']++;
+                    document.getElementById('blue-score').innerText = scores.blue; document.getElementById('red-score').innerText = scores.red;
+                    setTimeout(resetRound, 2000);
+                }
+            }
+        });
+    }
+
+    tanks.forEach((tank, index) => {
+        if (tank.powerType && Date.now() > tank.powerEnd) tank.powerType = null;
+        if (gameState === "PLAY" || gameState === "COUNTDOWN") {
+            if (!tank.active) tank.angle += 0.8 * tank.dir;
+            else if (gameState === "PLAY") {
+                let speedMult = tank.powerType === "SPEED" ? 3.2 : 1.6;
+                tank.x += Math.cos(tank.angle * Math.PI / 180) * speedMult;
+                tank.y += Math.sin(tank.angle * Math.PI / 180) * speedMult;
+                if (tank.x < 0) tank.x = canvas.width; if (tank.x > canvas.width) tank.x = 0;
+                if (tank.y < 0) tank.y = canvas.height; if (tank.y > canvas.height) tank.y = 0;
+                if (bushes.some(bush => Math.hypot(tank.x-bush.x, tank.y-bush.y) < 30)) {
+                    tank.x -= Math.cos(tank.angle * Math.PI / 180) * (speedMult + 1);
+                    tank.y -= Math.sin(tank.angle * Math.PI / 180) * (speedMult + 1);
+                }
+                if (healBox && Math.hypot(tank.x - healBox.x, tank.y - healBox.y) < 35) {
+                    tank.health = 3; healBox = null; lastHealTime = Date.now(); sounds.heal();
+                }
+                powerBoxes.forEach((p, pi) => {
+                    if (Math.hypot(tank.x - p.x, tank.y - p.y) < 35) {
+                        tank.powerType = getSmartPower(index);
+                        tank.lastPower = tank.powerType;
+                        tank.powerEnd = Date.now() + 10000;
+                        powerBoxes.splice(pi, 1); if(powerBoxes.length === 0) lastPowerTime = Date.now();
+                        sounds.power();
+                    }
+                });
+            }
+        }
+        
+        ctx.save(); ctx.translate(tank.x, tank.y);
+        ctx.fillStyle = "#333"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; ctx.fillText(tank.name, 0, -40);
+        if(tank.powerType === "SHIELD") {
+            ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI*2);
+            ctx.strokeStyle = "rgba(0, 170, 255, 0.5)"; ctx.lineWidth = 4; ctx.stroke();
+        }
+        ctx.rotate(tank.angle * Math.PI / 180);
+        
+        let visualScale = tank.powerType === "SPEED" ? 0.66 : 1.0;
+        ctx.scale(visualScale, visualScale);
+
+        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); 
+        ctx.strokeStyle = tank.powerType ? "#f1c40f" : "#333"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 20, 0, (Math.PI * 2) * (Math.max(0, tank.health) / 3)); ctx.fillStyle = tank.color; ctx.fill();
+        
+        ctx.fillStyle = tank.powerType ? "#f1c40f" : "#333";
+        if (tank.powerType === "SHOTGUN") {
+            for(let i=1; i<12; i++) { ctx.save(); ctx.rotate((i*30)*Math.PI/180); ctx.fillRect(20, -3, 12, 6); ctx.restore(); }
+            ctx.fillStyle = "#333"; ctx.fillRect(18, -4, 15, 8);
+        } else if (tank.powerType === "MEGA") {
+            ctx.fillRect(18, -12, 25, 24);
+        } else if (tank.powerType === "SNIPER") {
+            ctx.fillRect(18, -4, 40, 8); // 2 Kat Uzun Namlu
+        } else {
+            ctx.fillRect(18, -4, 15, 8);
+        }
+        ctx.restore();
+    });
+    requestAnimationFrame(update);
+}
+
+const handleInput = (index, isDown) => {
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    if(gameState !== "PLAY") return;
+    if(isDown && !tanks[index].active) {
+        tanks[index].dir *= -1;
+        let t = tanks[index];
+        if(t.powerType === "SHOTGUN") {
+            for(let a=0; a<360; a+=30) bullets.push({x: t.x, y: t.y, angle: a, color: "#f1c40f", owner: index, size: 4, canBreak: false, damage: 1});
+        } else if (t.powerType === "MEGA") {
+            bullets.push({x: t.x, y: t.y, angle: t.angle, color: t.color, owner: index, size: 12, canBreak: true, damage: 1});
+        } else if (t.powerType === "SNIPER") {
+            bullets.push({x: t.x, y: t.y, angle: t.angle, color: "#e67e22", owner: index, size: 5, canBreak: false, damage: 1.5});
+        } else {
+            bullets.push({x: t.x, y: t.y, angle: t.angle, color: t.color, owner: index, size: 4, canBreak: false, damage: 1});
+        }
+        sounds.fire();
+    }
+    tanks[index].active = isDown;
+};
+
+window.addEventListener('keydown', (e) => { if(e.key.toLowerCase()==='a') handleInput(0,true); if(e.key.toLowerCase()==='l') handleInput(1,true); });
+window.addEventListener('keyup', (e) => { if(e.key.toLowerCase()==='a') handleInput(0,false); if(e.key.toLowerCase()==='l') handleInput(1,false); });
+const setupBtn = (id, idx) => {
+    const b = document.getElementById(id);
+    b.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(idx, true); });
+    b.addEventListener('touchend', (e) => { e.preventDefault(); handleInput(idx, false); });
+    b.addEventListener('mousedown', () => handleInput(idx, true)); b.addEventListener('mouseup', () => handleInput(idx, false));
+};
+setupBtn('p1-btn', 0); setupBtn('p2-btn', 1);
+generateBushes(); startCountdown(); update();
+</script>
+</body>
+</html>
