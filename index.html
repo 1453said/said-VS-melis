@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Melis vs Said - Pro Arena FINAL v2</title>
+    <title>Melis vs Said - Ultra Fast Arena</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #fff; font-family: 'Arial Black', sans-serif; }
@@ -49,7 +49,7 @@ const sounds = {
     power: () => { playSound(400, 'sawtooth', 0.1, 0.1); setTimeout(() => playSound(800, 'sawtooth', 0.3, 0.1), 150); },
     tick: () => playSound(440, 'sine', 0.1, 0.1),
     go: () => playSound(880, 'sine', 0.3, 0.1),
-    win: () => [523, 523, 523, 659].forEach((f, i) => setTimeout(() => playSound(f, 'triangle', 0.3, 0.1), i * 150))
+    win: () => [523.25, 523.25, 523.25, 659.25].forEach((f, i) => setTimeout(() => playSound(f, 'triangle', 0.3, 0.1), i * 150))
 };
 
 const canvas = document.getElementById('gameCanvas');
@@ -131,7 +131,8 @@ function update() {
     }
     
     if (gameState === "PLAY" && powerBoxes.length === 0 && Date.now() - lastPowerTime > 15000) {
-        powerBoxes.push({ x: 50, y: canvas.height / 2 }, { x: canvas.width - 50, y: canvas.height / 2 });
+        powerBoxes.push({ x: 50, y: canvas.height / 2 });
+        powerBoxes.push({ x: canvas.width - 50, y: canvas.height / 2 });
     }
     powerBoxes.forEach(p => {
         ctx.fillStyle = "#000"; ctx.fillRect(p.x-15, p.y-15, 30, 30);
@@ -142,9 +143,6 @@ function update() {
         let b = bullets[i];
         b.x += Math.cos(b.angle * Math.PI / 180) * 8;
         b.y += Math.sin(b.angle * Math.PI / 180) * 8;
-        
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) { bullets.splice(i, 1); continue; }
-
         ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fillStyle = b.color; ctx.fill();
         for (let j = bushes.length - 1; j >= 0; j--) {
             let bush = bushes[j];
@@ -154,6 +152,7 @@ function update() {
             }
         }
         if (!bullets[i]) continue;
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) { bullets.splice(i, 1); continue; }
 
         tanks.forEach(tank => {
             let tRad = tank.powerType === "SPEED" ? 14 : 22;
@@ -173,9 +172,9 @@ function update() {
     tanks.forEach((tank, index) => {
         if (tank.powerType && Date.now() > tank.powerEnd) tank.powerType = null;
         if (gameState === "PLAY" || gameState === "COUNTDOWN") {
-            if (!tank.active) tank.angle += 1.0 * tank.dir; // ARTTIRILMIŞ DÖNÜŞ HIZI
+            if (!tank.active) tank.angle += 1.25 * tank.dir; // DAHA HIZLI DÖNÜŞ
             else if (gameState === "PLAY") {
-                let sMult = tank.powerType === "SPEED" ? 4.0 : 2.0; // ARTTIRILMIŞ İLERLEME HIZI
+                let sMult = tank.powerType === "SPEED" ? 5.0 : 2.5; // DAHA HIZLI İLERLEME
                 tank.x += Math.cos(tank.angle * Math.PI / 180) * sMult;
                 tank.y += Math.sin(tank.angle * Math.PI / 180) * sMult;
                 if (tank.x < 0) tank.x = canvas.width; if (tank.x > canvas.width) tank.x = 0;
@@ -206,7 +205,8 @@ function update() {
         ctx.rotate(tank.angle * Math.PI / 180);
         let vScale = tank.powerType === "SPEED" ? 0.66 : 1.0;
         ctx.scale(vScale, vScale);
-        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.strokeStyle = tank.powerType ? "#f1c40f" : "#333"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); 
+        ctx.strokeStyle = tank.powerType ? "#f1c40f" : "#333"; ctx.lineWidth = 3; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 20, 0, (Math.PI * 2) * (Math.max(0, tank.health) / 3)); ctx.fillStyle = tank.color; ctx.fill();
         if (tank.powerType === "SHOTGUN") {
             ctx.fillStyle = "#f1c40f";
