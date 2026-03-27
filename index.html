@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Melis vs Said - Light Speed Arena</title>
+    <title>Melis vs Said - Reflex Arena</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #fff; font-family: 'Arial Black', sans-serif; }
@@ -172,9 +172,9 @@ function update() {
     tanks.forEach((tank, index) => {
         if (tank.powerType && Date.now() > tank.powerEnd) tank.powerType = null;
         if (gameState === "PLAY" || gameState === "COUNTDOWN") {
-            if (!tank.active) tank.angle += 1.5 * tank.dir; // YENİ: 1.5 DÖNÜŞ HIZI
+            if (!tank.active) tank.angle += 1.87 * tank.dir; // YENİ: 1.87 DÖNÜŞ HIZI
             else if (gameState === "PLAY") {
-                let sMult = tank.powerType === "SPEED" ? 6.0 : 3.0; // YENİ: 3.0 İLERLEME HIZI
+                let sMult = tank.powerType === "SPEED" ? 6.0 : 3.0;
                 tank.x += Math.cos(tank.angle * Math.PI / 180) * sMult;
                 tank.y += Math.sin(tank.angle * Math.PI / 180) * sMult;
                 if (tank.x < 0) tank.x = canvas.width; if (tank.x > canvas.width) tank.x = 0;
